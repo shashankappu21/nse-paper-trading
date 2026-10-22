@@ -1,0 +1,52 @@
+import cors from 'cors';
+import express, { type Express } from 'express';
+import helmet from 'helmet';
+import { pinoHttp } from 'pino-http';
+import { rootLogger } from '@nse/core';
+import type { Container } from './container';
+import { authenticate } from './middleware/auth';
+import { errorHandler, notFound } from './middleware/errorHandler';
+import { requestId } from './middleware/requestId';
+import { authRoutes } from './routes/auth';
+import { healthRoutes } from './routes/health';
+import { instrumentRoutes, quoteRoutes } from './routes/instruments';
+import { orderRoutes } from './routes/orders';
+import { portfolioRoutes } from './routes/portfolio';
+
+export function createApp(c: Container): Express {
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1); // behind Caddy
+
+  app.use(requestId);
+  app.use(
+    pinoHttp({
+      logger: rootLogger,
+      genReqId: (req) => req.id as string,
+      customProps: (req) => ({ requestId: req.id, userId: (req as express.Request).userId }),
+      autoLogging: { ignore: (req) => req.url === '/health' },
+    }),
+  );
+  app.use(helmet());
+  app.use(
+    cors({
+      origin: c.config.CORS_ORIGINS.split(',').map((s) => s.trim()),
+      exposedHeaders: ['X-Request-Id', 'Idempotent-Replayed'],
+    }),
+  );
+  app.use(express.json({ limit: '10kb' }));
+
+  app.use(healthRoutes(c));
+
+  const v1 = express.Router();
+  v1.use('/auth', authRoutes(c));
+  v1.use('/instruments', instrumentRoutes(c));
+  v1.use('/quotes', quoteRoutes(c));
+  v1.use('/orders', authenticate(c.auth), orderRoutes(c));
+  v1.use('/portfolio', authenticate(c.auth), portfolioRoutes(c));
+  app.use('/api/v1', v1);
+
+  app.use(notFound);
+  app.use(errorHandler);
+  return app;
+}

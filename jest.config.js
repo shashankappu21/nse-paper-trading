@@ -7,6 +7,8 @@ const moduleNameMapper = {
 const common = { rootDir: __dirname, testEnvironment: 'node', transform: { '^.+\\.ts$': tsJest }, moduleNameMapper };
 
 module.exports = {
+  // Integration suites share one test database, so files run serially.
+  maxWorkers: 1,
   projects: [
     { ...common, displayName: 'core-unit', testMatch: ['<rootDir>/packages/core/test/unit/**/*.test.ts'] },
     {
