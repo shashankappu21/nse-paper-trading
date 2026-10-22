@@ -19,6 +19,10 @@ The frontend is a static build on Vercel that talks to the API over HTTPS/WSS.
 
 ---
 
+> **Prefer one click?** [`infra/aws/cloudformation.yml`](../infra/aws/cloudformation.yml) creates everything in
+> sections 1–2 (instance, Elastic IP, 80/443-only security group, SSM role, Docker) and lets you manage the host
+> through AWS Systems Manager instead of SSH. See [AWS_SETUP.md](AWS_SETUP.md).
+
 ## 1. Launch the instance
 
 | Setting | Value |

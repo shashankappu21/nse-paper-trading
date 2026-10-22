@@ -23,14 +23,15 @@ Vite · Tailwind 4 · TradingView lightweight-charts · Docker · GitHub Actions
 |---|---|
 | HTTP endpoints | **16** REST operations + **1** WebSocket (`/ws`) — documented at `/docs` (Swagger) |
 | Database tables | **7** (`users`, `instruments`, `daily_prices`, `orders`, `order_events`, `holdings`, `cash_ledger`) |
-| Tests | **125** Jest tests (51 unit, 74 integration against real Postgres/Redis/BullMQ) · 90% statement coverage |
+| Tests | **127** Jest tests (51 unit, 76 integration against real Postgres/Redis/BullMQ) · 90% statement coverage |
 | Load test (k6, 50 VUs) | **353 req/s**, order placement **p95 105 ms**, **0 errors** in 31,240 requests |
 | Execution latency | API accept → worker fill: **p50 23 ms, p95 40 ms** (21,756 market orders) |
 | Correctness under load | **0** ledger/holding/event-trail violations across 27,924 orders |
 
 📖 **Deeper reading:** [Build journal — decisions and challenges](docs/JOURNEY.md) ·
 [Design decisions (ADRs)](docs/DECISIONS.md) · [Load testing report](docs/LOAD_TESTING.md) ·
-[Deployment guide (EC2 + Caddy + Vercel)](docs/DEPLOYMENT.md) · [Interview prep](docs/INTERVIEW_PREP.md)
+[Deployment guide (EC2 + Caddy + Vercel)](docs/DEPLOYMENT.md) · [EC2 via SSM + CloudFormation](docs/AWS_SETUP.md) ·
+[Interview prep](docs/INTERVIEW_PREP.md)
 
 ---
 

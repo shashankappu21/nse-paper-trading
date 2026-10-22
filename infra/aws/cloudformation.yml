@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  NSE Paper Trading - single EC2 host (Docker Compose + Caddy). Managed through AWS Systems Manager:
+  no SSH key and no port 22. Creates the instance, an Elastic IP, a security group (80/443 only),
+  an instance role for SSM, a private artifact bucket, and a least-privilege "operator" policy that
+  can run commands on THIS instance only.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues: [t3.small, t3.medium, t3.large, t3a.medium, t3a.large]
+    Description: t3.medium (4 GB) is comfortable for Docker builds and k6 runs; t3.small works for a demo.
+  VolumeSizeGiB:
+    Type: Number
+    Default: 30
+    MinValue: 20
+  UbuntuAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+    Description: Latest Ubuntu 24.04 LTS (resolved at deploy time; ships with the SSM agent)
+  RepoUrl:
+    Type: String
+    Default: ''
+    Description: Optional public git URL to clone into /opt/nse/app on first boot (leave empty to upload a bundle via S3)
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: artifact-bucket-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ArtifactBucket.Arn
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: NSE Paper Trading - HTTP/HTTPS only (managed via SSM, no SSH)
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: ACME HTTP-01 + redirect }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTPS / WSS }
+        - { IpProtocol: udp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTP/3 }
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - { Id: expire-artifacts, Status: Enabled, ExpirationInDays: 14 }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref UbuntuAmi
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds: [!GetAtt WebSecurityGroup.GroupId]
+      MetadataOptions:
+        HttpTokens: required # IMDSv2 only
+        HttpEndpoint: enabled
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: !Ref VolumeSizeGiB, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+      Tags:
+        - { Key: Name, Value: nse-paper-trading }
+        - { Key: Project, Value: nse-paper-trading }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          exec > /var/log/nse-bootstrap.log 2>&1
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -y
+          apt-get install -y ca-certificates curl git jq unzip
+          # Docker Engine + Compose v2
+          curl -fsSL https://get.docker.com | sh
+          usermod -aG docker ubuntu
+          systemctl enable --now docker
+          # AWS CLI v2 (to fetch artifacts from the bucket)
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install
+          # 2 GB swap so image builds do not OOM on small instances
+          if [ ! -f /swapfile ]; then fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile; echo '/swapfile none swap sw 0 0' >> /etc/fstab; fi
+          # SSM agent ships as a snap on Ubuntu AMIs; make sure it is running
+          snap start amazon-ssm-agent || true
+          mkdir -p /opt/nse && chown ubuntu:ubuntu /opt/nse
+          echo "ARTIFACT_BUCKET=${ArtifactBucket}" > /opt/nse/aws.env
+          if [ -n "${RepoUrl}" ]; then sudo -u ubuntu git clone "${RepoUrl}" /opt/nse/app || true; fi
+          touch /opt/nse/bootstrap.done
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref Instance
+      Tags:
+        - { Key: Name, Value: nse-paper-trading }
+
+  # Attach this to the IAM user whose access key you give to the automation (Claude).
+  # It can run shell commands on THIS instance only, read results, and use the artifact bucket.
+  OperatorPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Run SSM commands on the NSE Paper Trading instance and use its artifact bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RunCommandsOnThisInstanceOnly
+            Effect: Allow
+            Action: ssm:SendCommand
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}'
+              - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript'
+          - Sid: ReadCommandResults
+            Effect: Allow
+            Action:
+              - ssm:GetCommandInvocation
+              - ssm:ListCommandInvocations
+              - ssm:ListCommands
+              - ssm:CancelCommand
+              - ssm:DescribeInstanceInformation
+              - ec2:DescribeInstances
+            Resource: '*'
+          - Sid: ArtifactBucket
+            Effect: Allow
+            Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub '${ArtifactBucket.Arn}/*'
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+    Description: Set as EC2_INSTANCE_ID in the Claude environment
+  PublicIp:
+    Value: !Ref ElasticIp
+  FreeHttpsDomain:
+    Description: Wildcard-DNS hostname that resolves to the Elastic IP; Caddy can get a Let's Encrypt cert for it
+    Value: !Join ['', [!Join ['-', !Split ['.', !Ref ElasticIp]], '.sslip.io']]
+  ArtifactBucket:
+    Value: !Ref ArtifactBucket
+    Description: Set as NSE_ARTIFACT_BUCKET in the Claude environment
+  OperatorPolicyArn:
+    Value: !Ref OperatorPolicy
+    Description: Attach to the IAM user whose access key the automation uses
