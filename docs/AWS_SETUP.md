@@ -25,7 +25,7 @@ Do **one** of:
   ask Claude to push.
 - **B. Push the bundle yourself** from your laptop:
   ```bash
-  git clone nse-paper-trading.bundle nse-paper-trading && cd nse-paper-trading
+  git clone nse-paper-trading.bundle nse-paper-trading && cd nse-paper-trading   # full history, branch main
   git remote set-url origin https://github.com/shashankappu21/project.git
   git push -u origin main
   ```
