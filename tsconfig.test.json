@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "noEmit": true,
+    "types": ["jest", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@nse/shared": ["packages/shared/src/index.ts"],
+      "@nse/core": ["packages/core/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "packages/*/test", "apps/api/src", "apps/api/test", "apps/worker/src", "apps/worker/test"]
+}

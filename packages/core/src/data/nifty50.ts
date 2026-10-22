@@ -1,0 +1,61 @@
+export interface SeedInstrument {
+  symbol: string;
+  name: string;
+  sector: string;
+  /** Approximate reference price (₹) used only by the offline FakePriceProvider. */
+  basePrice: number;
+}
+
+/** NIFTY 50 constituents. Yahoo symbol is `${symbol}.NS`. */
+export const NIFTY_50: SeedInstrument[] = [
+  { symbol: 'ADANIENT', name: 'Adani Enterprises', sector: 'Metals & Mining', basePrice: 2450 },
+  { symbol: 'ADANIPORTS', name: 'Adani Ports & SEZ', sector: 'Services', basePrice: 1420 },
+  { symbol: 'APOLLOHOSP', name: 'Apollo Hospitals', sector: 'Healthcare', basePrice: 7600 },
+  { symbol: 'ASIANPAINT', name: 'Asian Paints', sector: 'Consumer Durables', basePrice: 2450 },
+  { symbol: 'AXISBANK', name: 'Axis Bank', sector: 'Financial Services', basePrice: 1160 },
+  { symbol: 'BAJAJ-AUTO', name: 'Bajaj Auto', sector: 'Automobile', basePrice: 8800 },
+  { symbol: 'BAJFINANCE', name: 'Bajaj Finance', sector: 'Financial Services', basePrice: 1010 },
+  { symbol: 'BAJAJFINSV', name: 'Bajaj Finserv', sector: 'Financial Services', basePrice: 2030 },
+  { symbol: 'BEL', name: 'Bharat Electronics', sector: 'Capital Goods', basePrice: 410 },
+  { symbol: 'BHARTIARTL', name: 'Bharti Airtel', sector: 'Telecommunication', basePrice: 1960 },
+  { symbol: 'CIPLA', name: 'Cipla', sector: 'Healthcare', basePrice: 1530 },
+  { symbol: 'COALINDIA', name: 'Coal India', sector: 'Oil Gas & Fuels', basePrice: 390 },
+  { symbol: 'DRREDDY', name: "Dr. Reddy's Laboratories", sector: 'Healthcare', basePrice: 1260 },
+  { symbol: 'EICHERMOT', name: 'Eicher Motors', sector: 'Automobile', basePrice: 6900 },
+  { symbol: 'ETERNAL', name: 'Eternal (Zomato)', sector: 'Consumer Services', basePrice: 330 },
+  { symbol: 'GRASIM', name: 'Grasim Industries', sector: 'Construction Materials', basePrice: 2800 },
+  { symbol: 'HCLTECH', name: 'HCL Technologies', sector: 'Information Technology', basePrice: 1500 },
+  { symbol: 'HDFCBANK', name: 'HDFC Bank', sector: 'Financial Services', basePrice: 980 },
+  { symbol: 'HDFCLIFE', name: 'HDFC Life Insurance', sector: 'Financial Services', basePrice: 760 },
+  { symbol: 'HINDALCO', name: 'Hindalco Industries', sector: 'Metals & Mining', basePrice: 760 },
+  { symbol: 'HINDUNILVR', name: 'Hindustan Unilever', sector: 'FMCG', basePrice: 2500 },
+  { symbol: 'ICICIBANK', name: 'ICICI Bank', sector: 'Financial Services', basePrice: 1380 },
+  { symbol: 'INDIGO', name: 'InterGlobe Aviation', sector: 'Services', basePrice: 5800 },
+  { symbol: 'INFY', name: 'Infosys', sector: 'Information Technology', basePrice: 1480 },
+  { symbol: 'ITC', name: 'ITC', sector: 'FMCG', basePrice: 405 },
+  { symbol: 'JIOFIN', name: 'Jio Financial Services', sector: 'Financial Services', basePrice: 305 },
+  { symbol: 'JSWSTEEL', name: 'JSW Steel', sector: 'Metals & Mining', basePrice: 1140 },
+  { symbol: 'KOTAKBANK', name: 'Kotak Mahindra Bank', sector: 'Financial Services', basePrice: 2120 },
+  { symbol: 'LT', name: 'Larsen & Toubro', sector: 'Construction', basePrice: 3750 },
+  { symbol: 'M&M', name: 'Mahindra & Mahindra', sector: 'Automobile', basePrice: 3500 },
+  { symbol: 'MARUTI', name: 'Maruti Suzuki India', sector: 'Automobile', basePrice: 16000 },
+  { symbol: 'MAXHEALTH', name: 'Max Healthcare Institute', sector: 'Healthcare', basePrice: 1150 },
+  { symbol: 'NESTLEIND', name: 'Nestle India', sector: 'FMCG', basePrice: 1220 },
+  { symbol: 'NTPC', name: 'NTPC', sector: 'Power', basePrice: 340 },
+  { symbol: 'ONGC', name: 'Oil & Natural Gas Corporation', sector: 'Oil Gas & Fuels', basePrice: 245 },
+  { symbol: 'POWERGRID', name: 'Power Grid Corporation', sector: 'Power', basePrice: 290 },
+  { symbol: 'RELIANCE', name: 'Reliance Industries', sector: 'Oil Gas & Fuels', basePrice: 1400 },
+  { symbol: 'SBILIFE', name: 'SBI Life Insurance', sector: 'Financial Services', basePrice: 1820 },
+  { symbol: 'SBIN', name: 'State Bank of India', sector: 'Financial Services', basePrice: 870 },
+  { symbol: 'SHRIRAMFIN', name: 'Shriram Finance', sector: 'Financial Services', basePrice: 650 },
+  { symbol: 'SUNPHARMA', name: 'Sun Pharmaceutical', sector: 'Healthcare', basePrice: 1650 },
+  { symbol: 'TATACONSUM', name: 'Tata Consumer Products', sector: 'FMCG', basePrice: 1120 },
+  { symbol: 'TATASTEEL', name: 'Tata Steel', sector: 'Metals & Mining', basePrice: 170 },
+  { symbol: 'TCS', name: 'Tata Consultancy Services', sector: 'Information Technology', basePrice: 3050 },
+  { symbol: 'TECHM', name: 'Tech Mahindra', sector: 'Information Technology', basePrice: 1450 },
+  { symbol: 'TITAN', name: 'Titan Company', sector: 'Consumer Durables', basePrice: 3500 },
+  { symbol: 'TMPV', name: 'Tata Motors Passenger Vehicles', sector: 'Automobile', basePrice: 410 },
+  { symbol: 'TRENT', name: 'Trent', sector: 'Consumer Services', basePrice: 4800 },
+  { symbol: 'ULTRACEMCO', name: 'UltraTech Cement', sector: 'Construction Materials', basePrice: 12200 },
+  { symbol: 'WIPRO', name: 'Wipro', sector: 'Information Technology', basePrice: 245 },
+];
