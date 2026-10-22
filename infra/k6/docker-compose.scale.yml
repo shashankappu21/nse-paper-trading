@@ -1,0 +1,6 @@
+# Load-test overlay: run N stateless API replicas behind the nginx "web" container.
+#   docker compose -f docker-compose.yml -f infra/k6/docker-compose.scale.yml up -d --scale api=3
+# nginx resolves the "api" service name to every replica and round-robins between them.
+services:
+  api:
+    ports: !reset []

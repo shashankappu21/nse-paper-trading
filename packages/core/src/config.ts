@@ -18,6 +18,8 @@ const envSchema = z.object({
   EOD_CRON: z.string().default('0 16 * * 1-5'),
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_ORDERS_PER_MIN: z.coerce.number().int().positive().default(120),
 });
 
 export type Config = z.infer<typeof envSchema>;

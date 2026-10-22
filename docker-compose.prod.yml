@@ -1,0 +1,45 @@
+# Production overrides for a single EC2 host:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# - Caddy terminates HTTPS on 80/443 and proxies to the API; the API port is no longer published.
+# - The nginx "web" service is disabled (the frontend is deployed on Vercel).
+services:
+  api:
+    ports: !reset []
+    environment:
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to your Vercel URL(s)}
+    deploy:
+      resources:
+        limits: { memory: 512m }
+  worker:
+    deploy:
+      resources:
+        limits: { memory: 512m }
+  postgres:
+    deploy:
+      resources:
+        limits: { memory: 768m }
+  redis:
+    deploy:
+      resources:
+        limits: { memory: 256m }
+  web:
+    profiles: ['local-web']
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN, e.g. api.example.com}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  caddy_data:
+  caddy_config:

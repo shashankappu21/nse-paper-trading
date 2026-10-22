@@ -6,3 +6,5 @@ process.env.JWT_SECRET = 'test-secret-test-secret-test-secret-123';
 process.env.BCRYPT_ROUNDS = '4';
 process.env.MARKET_DATA_PROVIDER = 'fake';
 process.env.EXECUTION_MODE = 'sync';
+process.env.RATE_LIMIT_AUTH_PER_MIN = '10000';
+process.env.RATE_LIMIT_ORDERS_PER_MIN = '10000';

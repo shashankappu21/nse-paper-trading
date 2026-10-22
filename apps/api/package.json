@@ -9,6 +9,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@nse/core": "1.0.0",
     "@nse/shared": "1.0.0",
     "cors": "^2.8.5",

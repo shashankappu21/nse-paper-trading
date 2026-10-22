@@ -4,8 +4,8 @@ import { loadConfig } from '@nse/core';
 import { createApp } from '../src/app';
 import { buildContainer, type Container } from '../src/container';
 
-export function setup(): { app: Express; c: Container } {
-  const c = buildContainer(loadConfig());
+export function setup(env: Record<string, string> = {}): { app: Express; c: Container } {
+  const c = buildContainer(loadConfig({ ...process.env, ...env }));
   return { app: createApp(c), c };
 }
 

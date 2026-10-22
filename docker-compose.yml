@@ -1,0 +1,108 @@
+# Full stack:  cp .env.example .env  (set JWT_SECRET)  &&  docker compose up --build
+#   web   http://localhost:8080      api   http://localhost:4000  (Swagger at /docs)
+name: nse-paper-trading
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD:-trader}@postgres:5432/${POSTGRES_DB:-trading}
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (openssl rand -hex 32)}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+  MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-yahoo}
+  QUOTE_CACHE_TTL_SECONDS: ${QUOTE_CACHE_TTL_SECONDS:-15}
+  QUOTE_POLL_INTERVAL_MS: ${QUOTE_POLL_INTERVAL_MS:-5000}
+  EXECUTION_MODE: queue
+  EOD_CRON: ${EOD_CRON:-0 16 * * 1-5}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+  RATE_LIMIT_AUTH_PER_MIN: ${RATE_LIMIT_AUTH_PER_MIN:-20}
+  RATE_LIMIT_ORDERS_PER_MIN: ${RATE_LIMIT_ORDERS_PER_MIN:-120}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trader}
+      POSTGRES_DB: ${POSTGRES_DB:-trading}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF so BullMQ jobs (queued orders, schedules) survive a Redis restart.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: apply migrations, then seed instruments/history/demo account (both idempotent).
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: nse-paper-trading-api
+    command: ['sh', '-c', 'node packages/core/dist/scripts/migrate.js && node packages/core/dist/scripts/seed.js']
+    environment:
+      <<: *app-env
+      SEED_HISTORY_DAYS: ${SEED_HISTORY_DAYS:-730}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    image: nse-paper-trading-api
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    restart: unless-stopped
+    init: true
+    environment: *app-env
+    ports:
+      - '${API_PORT:-4000}:4000'
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/ready >/dev/null || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
+  worker:
+    image: nse-paper-trading-worker
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    restart: unless-stopped
+    init: true
+    environment: *app-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4001/ >/dev/null || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
+  web:
+    image: nse-paper-trading-web
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    restart: unless-stopped
+    ports:
+      - '${WEB_PORT:-8080}:8080'
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

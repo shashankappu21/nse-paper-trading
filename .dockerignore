@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+.git
+.github
+.env
+.env.*
+!.env.example
+docs
+infra/k6
+*.log
+dump.rdb
