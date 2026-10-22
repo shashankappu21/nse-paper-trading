@@ -40,8 +40,8 @@ async function main(): Promise<void> {
   const redis = new Redis(config.REDIS_URL);
   try {
     await migrate(pool);
-    await instrumentsRepo.upsertMany(pool, NIFTY_50);
-    rootLogger.info({ count: NIFTY_50.length }, 'instruments seeded');
+    const retired = await instrumentsRepo.syncUniverse(pool, NIFTY_50);
+    rootLogger.info({ count: NIFTY_50.length, retired }, 'instrument universe synced');
 
     const provider = config.MARKET_DATA_PROVIDER === 'fake' ? new FakePriceProvider() : new YahooPriceProvider();
     const ingest = new PriceIngestService(pool, provider);

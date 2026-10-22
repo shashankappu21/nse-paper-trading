@@ -107,7 +107,7 @@ describe('order flow (integration, real Postgres)', () => {
     });
 
     it('rejects with PRICE_UNAVAILABLE when there is no quote', async () => {
-      const { order } = await place({ symbol: 'WIPRO', side: 'BUY', type: 'MARKET', quantity: 1 });
+      const { order } = await place({ symbol: 'BSE', side: 'BUY', type: 'MARKET', quantity: 1 });
       expect(order.status).toBe('REJECTED');
       expect(order.rejectReason).toBe('PRICE_UNAVAILABLE');
     });
@@ -121,6 +121,22 @@ describe('order flow (integration, real Postgres)', () => {
       const statuses = results.map((r) => r.order.status).sort();
       expect(statuses).toEqual(['FILLED', 'REJECTED']);
       expect(await cash()).toBe(400_000);
+    });
+  });
+
+  describe('index changes', () => {
+    // Simulates a stock leaving the NIFTY 50 (e.g. WIPRO -> BSE in Sep 2026) while users still hold it.
+    afterEach(() => pool.query(`UPDATE instruments SET active = true WHERE symbol = 'INFY'`));
+
+    it('an instrument that left the universe is exit-only: buys rejected, sells allowed', async () => {
+      await place({ symbol: 'INFY', side: 'BUY', type: 'MARKET', quantity: 4 });
+      await pool.query(`UPDATE instruments SET active = false WHERE symbol = 'INFY'`);
+
+      const buy = await place({ symbol: 'INFY', side: 'BUY', type: 'MARKET', quantity: 1 });
+      expect(buy.order).toMatchObject({ status: 'REJECTED', rejectReason: 'INSTRUMENT_NOT_TRADABLE' });
+
+      const sell = await place({ symbol: 'INFY', side: 'SELL', type: 'MARKET', quantity: 4 });
+      expect(sell.order.status).toBe('FILLED');
     });
   });
 

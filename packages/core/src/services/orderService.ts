@@ -82,8 +82,15 @@ export class OrderService {
         requestId,
       });
 
-      if (!instrument.active) {
-        return { order: await transitionOrder(tx, inserted, 'REJECTED', { requestId, rejectReason: 'INSTRUMENT_NOT_TRADABLE' }) };
+      // Instruments that left the index are exit-only: users may still sell what they hold.
+      if (!instrument.active && input.side === 'BUY') {
+        return {
+          order: await transitionOrder(tx, inserted, 'REJECTED', {
+            requestId,
+            rejectReason: 'INSTRUMENT_NOT_TRADABLE',
+            payload: { message: `${input.symbol} is no longer in the tradable universe; only sells are allowed` },
+          }),
+        };
       }
       const check = await this.preTradeCheck(tx, inserted, quote);
       if (!check.ok) {

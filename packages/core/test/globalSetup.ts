@@ -5,7 +5,7 @@ export default async function globalSetup(): Promise<void> {
   const pool = createPool(url, 2);
   try {
     await migrate(pool);
-    await instrumentsRepo.upsertMany(pool, NIFTY_50);
+    await instrumentsRepo.syncUniverse(pool, NIFTY_50);
   } finally {
     await pool.end();
   }

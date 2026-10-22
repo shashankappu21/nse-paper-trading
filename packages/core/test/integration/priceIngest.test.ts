@@ -1,4 +1,4 @@
-import { FakePriceProvider, PriceIngestService, type Pool } from '../../src';
+import { FakePriceProvider, NIFTY_50, PriceIngestService, instrumentsRepo, type Pool } from '../../src';
 import { resetDb, testPool } from '../helpers';
 
 describe('PriceIngestService', () => {
@@ -35,5 +35,27 @@ describe('PriceIngestService', () => {
       expect(b.low).toBeLessThanOrEqual(Math.min(b.open, b.close));
       expect(b.high).toBeGreaterThanOrEqual(Math.max(b.open, b.close));
     }
+  });
+});
+
+describe('instrumentsRepo.syncUniverse', () => {
+  let pool: Pool;
+  beforeAll(() => {
+    pool = testPool();
+  });
+  afterAll(async () => {
+    await instrumentsRepo.syncUniverse(pool, NIFTY_50); // restore the real universe for other suites
+    await pool.end();
+  });
+
+  it('upserts members and retires symbols that left the index', async () => {
+    const withoutTcs = NIFTY_50.filter((i) => i.symbol !== 'TCS');
+    const retired = await instrumentsRepo.syncUniverse(pool, withoutTcs);
+    expect(retired).toEqual(['TCS']);
+    expect((await instrumentsRepo.findBySymbol(pool, 'TCS'))?.active).toBe(false);
+    expect((await instrumentsRepo.listActive(pool)).map((i) => i.symbol)).not.toContain('TCS');
+    // Re-adding reactivates it
+    await instrumentsRepo.syncUniverse(pool, NIFTY_50);
+    expect((await instrumentsRepo.findBySymbol(pool, 'TCS'))?.active).toBe(true);
   });
 });

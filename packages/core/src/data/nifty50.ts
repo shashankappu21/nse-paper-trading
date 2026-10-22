@@ -6,7 +6,10 @@ export interface SeedInstrument {
   basePrice: number;
 }
 
-/** NIFTY 50 constituents. Yahoo symbol is `${symbol}.NS`. */
+/**
+ * NIFTY 50 constituents (after the NSE semi-annual review effective 30 Sep 2026: BSE in, WIPRO out).
+ * Yahoo symbol is `${symbol}.NS`. Re-check after each March/September index review.
+ */
 export const NIFTY_50: SeedInstrument[] = [
   { symbol: 'ADANIENT', name: 'Adani Enterprises', sector: 'Metals & Mining', basePrice: 2450 },
   { symbol: 'ADANIPORTS', name: 'Adani Ports & SEZ', sector: 'Services', basePrice: 1420 },
@@ -17,6 +20,7 @@ export const NIFTY_50: SeedInstrument[] = [
   { symbol: 'BAJFINANCE', name: 'Bajaj Finance', sector: 'Financial Services', basePrice: 1010 },
   { symbol: 'BAJAJFINSV', name: 'Bajaj Finserv', sector: 'Financial Services', basePrice: 2030 },
   { symbol: 'BEL', name: 'Bharat Electronics', sector: 'Capital Goods', basePrice: 410 },
+  { symbol: 'BSE', name: 'BSE Ltd', sector: 'Financial Services', basePrice: 2600 },
   { symbol: 'BHARTIARTL', name: 'Bharti Airtel', sector: 'Telecommunication', basePrice: 1960 },
   { symbol: 'CIPLA', name: 'Cipla', sector: 'Healthcare', basePrice: 1530 },
   { symbol: 'COALINDIA', name: 'Coal India', sector: 'Oil Gas & Fuels', basePrice: 390 },
@@ -57,5 +61,4 @@ export const NIFTY_50: SeedInstrument[] = [
   { symbol: 'TMPV', name: 'Tata Motors Passenger Vehicles', sector: 'Automobile', basePrice: 410 },
   { symbol: 'TRENT', name: 'Trent', sector: 'Consumer Services', basePrice: 4800 },
   { symbol: 'ULTRACEMCO', name: 'UltraTech Cement', sector: 'Construction Materials', basePrice: 12200 },
-  { symbol: 'WIPRO', name: 'Wipro', sector: 'Information Technology', basePrice: 245 },
 ];

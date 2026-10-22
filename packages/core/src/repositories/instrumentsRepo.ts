@@ -19,6 +19,19 @@ export const instrumentsRepo = {
     );
   },
 
+  /**
+   * Make the table match the index: upsert the given members (active) and mark everything else inactive.
+   * Removed members are kept (orders and holdings reference them) but become exit-only.
+   */
+  async syncUniverse(db: Db, items: Array<{ symbol: string; name: string; sector: string }>): Promise<string[]> {
+    await instrumentsRepo.upsertMany(db, items);
+    const { rows } = await db.query<{ symbol: string }>(
+      'UPDATE instruments SET active = false WHERE active AND NOT (symbol = ANY($1::text[])) RETURNING symbol',
+      [items.map((i) => i.symbol)],
+    );
+    return rows.map((r) => r.symbol);
+  },
+
   async findBySymbol(db: Db, symbol: string): Promise<InstrumentRow | null> {
     const { rows } = await db.query<InstrumentRow>('SELECT * FROM instruments WHERE symbol = $1', [symbol]);
     return rows[0] ?? null;

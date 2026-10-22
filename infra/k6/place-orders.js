@@ -18,7 +18,7 @@ import { Counter, Trend } from 'k6/metrics';
 
 const BASE = __ENV.BASE_URL || 'http://localhost:4000';
 const USERS = Number(__ENV.USERS || 50);
-const SYMBOLS = ['ITC', 'WIPRO', 'ONGC', 'TATASTEEL', 'NTPC', 'POWERGRID', 'COALINDIA', 'JIOFIN', 'BEL', 'ETERNAL'];
+const SYMBOLS = ['ITC', 'HDFCLIFE', 'ONGC', 'TATASTEEL', 'NTPC', 'POWERGRID', 'COALINDIA', 'JIOFIN', 'BEL', 'ETERNAL'];
 
 const placeLatency = new Trend('order_place_duration', true);
 const replays = new Counter('idempotent_replays');
