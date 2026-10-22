@@ -7,9 +7,12 @@ import {
   MarketDataService,
   OrderService,
   PortfolioService,
+  QueueDispatcher,
   SyncDispatcher,
   YahooPriceProvider,
+  createOrderQueue,
   createPool,
+  redisOrderNotifier,
   type Config,
   type OrderDispatcher,
   type Pool,
@@ -36,7 +39,13 @@ export function buildContainer(config: Config, overrides: { dispatcher?: OrderDi
   const provider: PriceProvider = config.MARKET_DATA_PROVIDER === 'fake' ? new FakePriceProvider() : new YahooPriceProvider();
   const marketData = new MarketDataService(redis, provider, config.QUOTE_CACHE_TTL_SECONDS);
 
-  const dispatcher = overrides.dispatcher ?? new SyncDispatcher(new ExecutionService(pool, marketData));
+  // queue: publish to BullMQ for the worker; sync: execute in-process (tests, single-process dev).
+  const orderQueue = config.EXECUTION_MODE === 'queue' && !overrides.dispatcher ? createOrderQueue(config.REDIS_URL) : null;
+  const dispatcher =
+    overrides.dispatcher ??
+    (orderQueue
+      ? new QueueDispatcher(orderQueue)
+      : new SyncDispatcher(new ExecutionService(pool, marketData, redisOrderNotifier(redis))));
 
   return {
     config,
@@ -49,6 +58,7 @@ export function buildContainer(config: Config, overrides: { dispatcher?: OrderDi
     portfolio: new PortfolioService(pool, marketData),
     instruments: new InstrumentService(pool, marketData),
     async close() {
+      await orderQueue?.close();
       await Promise.allSettled([pool.end(), redis.quit()]);
     },
   };

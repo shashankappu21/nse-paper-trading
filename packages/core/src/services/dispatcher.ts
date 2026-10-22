@@ -3,6 +3,8 @@ import type { ExecutionService } from './executionService';
 export interface ExecuteOrderJob {
   orderId: string;
   requestId?: string;
+  /** Distinguishes a deliberate re-dispatch (reconciler) from the original job id. */
+  jobIdSuffix?: string;
 }
 
 /** How a validated order reaches execution: in-process (sync) or via BullMQ (queue). */

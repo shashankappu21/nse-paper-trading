@@ -24,7 +24,8 @@ export function orderRoutes(c: Container): Router {
         requestId: req.id as string,
       });
       if (replayed) res.setHeader('Idempotent-Replayed', 'true');
-      res.status(replayed ? 200 : 201).json(order);
+      // 202: accepted and queued for the execution worker; 201: already in its resting/final state.
+      res.status(replayed ? 200 : order.status === 'VALIDATED' ? 202 : 201).json(order);
     }),
   );
 

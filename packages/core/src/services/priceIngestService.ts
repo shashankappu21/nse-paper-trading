@@ -20,7 +20,10 @@ export class PriceIngestService {
     const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
       for (let symbol = queue.shift(); symbol; symbol = queue.shift()) {
         try {
-          bars += await pricesRepo.upsertMany(this.pool, await this.provider.getDailyHistory(symbol, from, to));
+          // Await first, then add: `bars += await x` reads `bars` before the await and loses
+          // increments made by the other concurrent loops.
+          const written = await pricesRepo.upsertMany(this.pool, await this.provider.getDailyHistory(symbol, from, to));
+          bars += written;
         } catch (err) {
           failed.push(symbol);
           log.warn({ err, symbol }, 'price ingest failed for symbol');

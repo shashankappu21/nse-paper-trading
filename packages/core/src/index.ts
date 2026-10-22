@@ -27,3 +27,6 @@ export * from './services/orderService';
 export * from './services/portfolioService';
 export * from './services/instrumentService';
 export * from './services/priceIngestService';
+export * from './queue/queues';
+export * from './services/eodService';
+export * from './services/orderNotifier';

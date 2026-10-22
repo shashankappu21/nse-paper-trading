@@ -77,7 +77,7 @@ export class ExecutionService {
    * Only orders placed before that session's close (15:30 IST) are eligible.
    */
   async sweepLimitOrders(date: string): Promise<SweepResult> {
-    const log = getLogger().child({ job: 'limit-sweep', date });
+    const log = getLogger().child({ job: 'limit-sweep' });
     const sessionClose = new Date(`${date}T15:30:00+05:30`);
     const result: SweepResult = { date, examined: 0, filled: 0, rejected: 0 };
     const requestId = `eod-${date}`;

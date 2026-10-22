@@ -145,7 +145,9 @@ export class OrderService {
   /** Re-dispatch orders that were validated but never reached execution. */
   async redispatchStale(olderThanMs: number): Promise<number> {
     const stale = await ordersRepo.listStaleValidated(this.pool, new Date(Date.now() - olderThanMs));
-    for (const order of stale) await this.dispatch(order, `reconcile-${order.id}`);
+    // A new job id per sweep: the original job may still sit in BullMQ's failed set, which would dedupe it.
+    const suffix = `r${Math.floor(Date.now() / 60_000)}`;
+    for (const order of stale) await this.dispatch(order, `reconcile-${order.id}`, suffix);
     return stale.length;
   }
 
@@ -170,9 +172,9 @@ export class OrderService {
     return checkSellableQuantity(position.quantity, reserved, order.quantity);
   }
 
-  private async dispatch(order: OrderRow, requestId?: string): Promise<void> {
+  private async dispatch(order: OrderRow, requestId?: string, jobIdSuffix?: string): Promise<void> {
     try {
-      await this.dispatcher.dispatch({ orderId: order.id, requestId });
+      await this.dispatcher.dispatch({ orderId: order.id, requestId, jobIdSuffix });
     } catch (err) {
       // The order is safely persisted as VALIDATED; the reconciler will pick it up.
       getLogger().error({ err, orderId: order.id }, 'failed to dispatch order');
