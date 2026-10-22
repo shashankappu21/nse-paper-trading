@@ -16,6 +16,11 @@ export default tseslint.config(
     },
   },
   {
+    // Tests poke at untyped JSON (HTTP bodies, socket frames); strict typing there adds noise, not safety.
+    files: ['**/test/**/*.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
+  {
     files: ['**/*.js', '**/*.cjs'],
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
