@@ -9,7 +9,8 @@ hit along the way* — with the symptom, the root cause, the fix, and the lesson
 - [Stage 2 — moving execution into a BullMQ worker](#stage-2--moving-execution-into-a-bullmq-worker)
 - [Stage 3 — the frontend and live prices](#stage-3--the-frontend-and-live-prices)
 - [Stage 4 — production readiness](#stage-4--production-readiness)
-- [Challenge log (all 28, in one table)](#challenge-log)
+- [Stage 5 — hardening and verification](#stage-5--hardening-and-verification)
+- [Challenge log (all 30, in one table)](#challenge-log)
 - [What I would do next](#what-i-would-do-next)
 - [Numbers to remember](#numbers-to-remember)
 
@@ -462,6 +463,100 @@ until it looked good.
 
 ---
 
+## Stage 5 — hardening and verification
+
+Stages 1–4 were built in a cloud sandbox that could not reach Yahoo Finance or push to GitHub, so two things had
+never actually run: **the real market data provider** and **CI**. Stage 5 moves the project onto a real laptop
+and works through a list of follow-ups — verify, then harden, then measure — one commit per item. This section
+grows as each item lands.
+
+### 5.1 Publishing and the first real CI run
+
+**Built:** pushed to GitHub (public), watched the first GitHub Actions run, fixed what it reported.
+
+- **The first CI run passed first time:** lint, type-check, 127/127 tests against Postgres/Redis service
+  containers (90.8% statements), and all three Docker images. A fresh runner passing on the first attempt is the
+  evidence that the environment is fully declared in code (`ci.yml`, service containers, `.nvmrc`), not
+  something that only works on the machine it was written on.
+- **History was re-authored before the first push.** Commits made in the sandbox carried its git identity;
+  `git filter-branch --env-filter` rewrote author and committer while keeping dates, and an empty
+  `git diff` between the old and new tips proved the content was byte-identical. Only safe because nothing had
+  been published yet — rewriting pushed history breaks everyone who cloned it.
+
+### 5.2 Real market data
+
+**Built:** the first run of `YahooPriceProvider` against live Yahoo, a data-quality probe, retry on ingest, and
+11 unit tests for the provider.
+
+**Verify before trusting.** Rather than run the seed and read logs, a probe script called `yahoo-finance2` the
+same way the provider does, for all 50 symbols, and checked what usually breaks:
+
+| Check | Result |
+|---|---|
+| Ticker mapping `SYMBOL.NS` — incl. `M&M`, `BAJAJ-AUTO`, `TMPV`, `ETERNAL`, `BSE`, `JIOFIN` | 50/50 quotes in one batched call; 50/50 charts |
+| Two years of daily bars | 494 per symbol; no nulls; no duplicate IST dates; `low ≤ open,close ≤ high` everywhere |
+| Bar timestamps | 09:15 IST (03:45 UTC), so the IST date conversion is correct |
+| Splits | Already back-adjusted by Yahoo (e.g. KOTAKBANK 5:1 shows no jump) |
+| Weekend bars | One: **Sat 1 Feb 2025** — real, NSE held a special session for the Union Budget |
+
+**No mapping changes were needed.** End to end through the API: `/instruments/M%26M`, candles, batch quotes,
+search for `M&`, all 50 with quotes on `/instruments/top`, and a real market buy of M&M filled at the live price.
+
+**Known data quirks (Yahoo's, documented rather than "fixed"):**
+- **TMPV −40% on 2025-10-14** — the Tata Motors demerger (passenger vehicles kept the listing). Yahoo adjusts
+  for splits, not demergers, so the chart shows a cliff.
+- **TRENT −33% on 2026-01-01** — a 3:2 bonus that Yahoo has *not* back-adjusted; it records the split event on a
+  different date (2026-06-04).
+
+Rewriting the provider's history ourselves would mean maintaining a corporate-actions table — out of scope for
+paper trading, and the limit-order sweep only ever reads the last few days.
+
+**Unit tests that copy reality.** The provider's tests mock `yahoo-finance2` with response shapes captured from
+the live run: float noise (`1702.699951171875` → `1702.70`), `M&M.NS` mapped back to `M&M`, a quote without a
+price dropped (never fill at an unknown price), a bar stamped 18:30 UTC keyed to the next IST date, incomplete
+bars skipped, errors propagated so callers can retry.
+
+### 5.3 Documentation pass
+
+After items 1–2 the docs were brought in line with what is now measured: README test counts rebuilt from
+`jest --json` per-file results, a CI badge, the Yahoo verification, and local-setup notes (Node 22 via `.nvmrc`,
+Docker first). The rule from challenge 23 applies again — **numbers in docs come from tool output, not memory**.
+
+### Challenges in Stage 5
+
+**26. The first real seed lost 21 of 50 symbols — and said it was complete.**
+*Symptom:* `price ingest complete … failed: 21`. The missing ones were **the last 21 alphabetically** (LT …
+ULTRACEMCO), all with `getaddrinfo ENOTFOUND query2.finance.yahoo.com`.
+*Cause:* a transient DNS failure on the laptop. The pattern — everything after a point fails, not a random
+scatter — pointed at the network, not Yahoo or the mapping; two immediate re-runs were clean (24,700 bars, 0
+failed). But it exposed two real weaknesses: **no retry** (one blip loses a symbol's whole history) and **a
+partial failure logged at `info` as "complete"**.
+*Fix:* `PriceIngestService` retries each symbol (3 attempts, 1 s then 2 s backoff, configurable), and an
+incomplete ingest logs at `error` with the failed symbols. Test-first: a provider that fails TCS twice then
+succeeds, and INFY permanently — red because the service took no retry options, then green.
+*Decision:* the seed still **exits 0** on partial failure. In Compose a failed `migrate` container blocks the API
+from starting; a stack missing a few charts (healed by the next EOD run or re-seed) beats no stack.
+*Lesson:* a job that skips work must say so loudly; retry transient network errors with backoff — even in a
+"one-off" script.
+
+**27. The docs cited a commit hash that no longer existed.** Re-authoring changes every hash, and README and
+JOURNEY linked the red TDD commit as `2d7e968`. Grepped all 11 old hashes and fixed the reference (`ffdcb71`).
+*Lesson:* after rewriting history, search for content-addressed references.
+
+**28. CI was green but warned that Node 20 actions are deprecated.** `actions/checkout@v4`, `setup-node@v4`,
+`setup-buildx@v3` and `build-push@v6` all ran on Node 20, which GitHub now forces onto Node 24. Checked each
+action's latest release `action.yml` for its runtime and moved to the Node 24 majors (v7 / v7 / v4 / v7); the
+next run was green with no annotations. *Lesson:* treat runtime-deprecation warnings as failures that haven't
+happened yet.
+
+**29. The README's test table was already wrong.** Its rows summed to 125 while the suite had 127: the
+index-rejig commit had added two tests without updating the table. Rebuilt every row from `jest --json`.
+
+**30. The laptop's default Node was 26; the project targets 22.** `.nvmrc` and CI say 22. Installed 22 with
+`fnm` and ran everything through it rather than "it works on 26" — CI is the reference environment.
+
+---
+
 ## Challenge log
 
 | # | Stage | Problem | Root cause | Fix |
@@ -491,6 +586,11 @@ until it looked good.
 | 23 | 4 | Endpoint count wrong | My miscount | Spec-generated test is the truth |
 | 24 | 4 | Noisy benchmark | Tests running concurrently | Re-run on idle host |
 | 25 | 4 | 3× replicas → +13% | Postgres/host CPU bound | Analysed and documented |
+| 26 | 5 | Seed lost 21/50 symbols, logged "complete" | Transient DNS failure; no retry; partial failure at `info` | Per-symbol retry with backoff; `error` log listing failures |
+| 27 | 5 | Docs cited a missing commit | History re-authored → new hashes | Grep old hashes, update |
+| 28 | 5 | CI warning: Node 20 actions deprecated | Old action majors | Node 24 majors of all four actions |
+| 29 | 5 | README test table summed wrong | Tests added without updating docs | Rebuilt from `jest --json` |
+| 30 | 5 | Laptop on Node 26 | Not the project's version | Node 22 via fnm, matching `.nvmrc`/CI |
 
 ---
 
@@ -518,7 +618,8 @@ In priority order, each grounded in something measured or observed above:
 |---|---|
 | Endpoints | 16 REST + 1 WebSocket |
 | Tables | 7 |
-| Tests | 125 (51 unit, 74 integration) · 90% statements |
+| Tests | 139 (62 unit, 77 integration) · 92% statements · green on GitHub Actions |
+| Market data | Live Yahoo verified: 50/50 symbols, 24,700 daily bars |
 | Throughput (1 API, 50 VUs) | 353 req/s, p95 105 ms, 0 errors |
 | Async fill latency | p50 23 ms, p95 40 ms |
 | Correctness under load | 0 violations / 27,924 orders |

@@ -178,6 +178,13 @@ concurrent misses, and a worker job that refreshes all quotes every 5 s and publ
 request per 5 s regardless of user count; offline dev/CI/load tests via the fake. − Prices are up to one poll
 interval stale (Yahoo itself is delayed); single-flight is per process.
 
+**Addendum (Stage 5, after the first run against live Yahoo).** Candle ingest retries each symbol (3 attempts,
+exponential backoff from 1 s) because a transient DNS failure once dropped 21 of 50 symbols in a single seed.
+A still-incomplete ingest logs at `error` with the failed symbols but **does not fail the seed**: in Compose
+that would block the API from starting, and the next EOD run or re-seed fills the gap. Yahoo back-adjusts
+splits but not demergers or every bonus (TMPV, TRENT); those cliffs are shown as Yahoo reports them rather than
+corrected with our own corporate-actions table.
+
 ## ADR-012: Realtime via Redis pub/sub, fanned out by each API instance
 
 **Decision.** The worker publishes quotes and order updates to Redis channels. Each API instance subscribes and

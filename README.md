@@ -213,13 +213,18 @@ container (NIFTY 50, ~2 years of daily candles, demo account), and only then sta
 
 ### Option B — local development
 
-Requires Node 22, PostgreSQL 16 and Redis 7 (e.g. `docker compose up -d postgres redis` and expose ports, or local installs).
+Requires **Node 22** (pinned in `.nvmrc`, same as CI) and Docker for PostgreSQL 16 and Redis 7. If your default
+Node is newer, install 22 with a version manager (`fnm install 22`, then prefix commands with
+`fnm exec --using=22`). On Windows, start Docker Desktop before running `docker`.
 
 ```bash
 npm install
-cp .env.example .env            # DATABASE_URL / REDIS_URL point at localhost
-createdb trading && createdb trading_test
-npm run seed                    # migrations + instruments + candles + demo account (idempotent)
+docker run -d --name nse-pg -p 5432:5432 -e POSTGRES_USER=trader -e POSTGRES_PASSWORD=trader \
+  -e POSTGRES_DB=trading postgres:16-alpine
+docker run -d --name nse-redis -p 6379:6379 redis:7-alpine
+docker exec nse-pg createdb -U trader trading_test   # wait a few seconds for postgres first
+cp .env.example .env            # set JWT_SECRET (32+ chars); DATABASE_URL / REDIS_URL point at localhost
+npm run seed                    # migrations + instruments + 2y candles + demo account (idempotent)
 npm run dev:api                 # http://localhost:4000
 npm run dev:worker              # execution worker + schedulers
 npm run dev:web                 # http://localhost:5173 (proxies /api and /ws to :4000)
@@ -227,6 +232,10 @@ npm run dev:web                 # http://localhost:5173 (proxies /api and /ws to
 
 Set `EXECUTION_MODE=sync` to run without the worker (the API executes orders in-process — handy for
 debugging; tests use this mode for the service-level suites).
+
+Next time, `docker start nse-pg nse-redis` brings the databases back. Outside NSE hours (09:15–15:30 IST,
+weekdays) Yahoo prices don't move; set `MARKET_DATA_PROVIDER=fake` for a ticking offline market. To fill open
+limit orders without waiting for 16:00 IST, run `npm run eod -w apps/worker`.
 
 ### Useful scripts
 
@@ -393,14 +402,18 @@ for api, worker and web (buildx with GitHub Actions cache).
 
 ## Project history
 
-Built in four stages, each working end-to-end and committed before the next. The full story — every decision
+Built in stages, each working end-to-end and committed before the next. The full story — every decision
 and every bug hit along the way — is in **[docs/JOURNEY.md](docs/JOURNEY.md)**.
 
 1. Schema, migrations, auth, market data cache, synchronous order flow — **tests first**
 2. Execution moved into a BullMQ worker; scheduled EOD limit-order job; reconciler
 3. React frontend with live prices and order updates over WebSockets
 4. OpenAPI, rate limiting, CI, Docker, Compose, k6, deployment
+5. Hardening and verification on real infrastructure: first GitHub Actions runs, live Yahoo data for all 50
+   stocks, retry on ingest (in progress — see [Stage 5](docs/JOURNEY.md#stage-5--hardening-and-verification))
 
 ---
 
-*Paper trading only. No real orders are sent anywhere. Market data from Yahoo Finance is unofficial and may be delayed.*
+*Paper trading only. No real orders are sent anywhere. Market data from Yahoo Finance is unofficial and may be delayed.
+Yahoo back-adjusts splits but not demergers or every bonus issue, so some charts show real corporate-action cliffs
+(e.g. TMPV on 2025-10-14, TRENT on 2026-01-01) — see [the build journal](docs/JOURNEY.md#52-real-market-data).*

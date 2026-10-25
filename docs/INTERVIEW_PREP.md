@@ -79,7 +79,14 @@ have heartbeats and slow-consumer protection.
 **How did you test? Why real databases?**
 Domain logic (state machine, P&L, checks) has pure unit tests. Everything else runs against real Postgres, Redis
 and BullMQ, because the correctness lives in constraints, locks and transactions — a mocked DB can't fail a
-unique constraint. 125 tests, 90% statement coverage. The order specs were committed red before implementation.
+unique constraint. 139 tests, 92% statement coverage, green on GitHub Actions with Postgres/Redis service
+containers. The order specs were committed red before implementation.
+
+**How do you know the market data integration works?**
+I ran it against live Yahoo for all 50 stocks before trusting it: one batched quote call, two years of daily bars
+each, and checks for the usual breakages — symbols like `M&M`, duplicate dates after timezone conversion, split
+adjustment, weekend bars. Then I placed a real order through the API. The provider's unit tests mock
+`yahoo-finance2` with response shapes captured from that live run, not shapes I guessed.
 
 **What did the load test show?**
 353 req/s with 50 VUs, p95 105 ms, zero errors; async fill latency p95 40 ms. At 200 VUs a single API pegs its
@@ -119,7 +126,17 @@ showed each API at 50% CPU and Postgres saturated on the shared 4-core host. *R:
 with the analysis instead of tuning the test — the bottleneck moved, which is exactly what scaling out is
 supposed to reveal.
 
+**The seed that said "complete" with 21 stocks missing.**
+*S:* The first time the seed ran against live Yahoo, it logged "price ingest complete" — with 21 of 50 symbols
+failed. *T:* Work out whether the integration was broken. *A:* The failures were the last 21 alphabetically, all
+`ENOTFOUND` — a point-in-time DNS blip, not a mapping bug; a probe of all 50 symbols and two clean re-runs
+confirmed it. But one blip shouldn't cost a stock its chart, and a partial failure shouldn't log as success.
+*R:* Per-symbol retry with exponential backoff and an `error` log listing failures, test-first. I deliberately
+kept the seed's exit code 0, because a failed migrate container would stop the whole Compose stack from
+starting — and I can explain that trade-off.
+
 ## Numbers cheat-sheet
 
-16 REST endpoints + 1 WebSocket · 7 tables · 125 tests (90% coverage) · 353 req/s, p95 105 ms, 0 errors ·
-fill latency p95 40 ms · 0 invariant violations / 27,924 orders · ~70 MB images · 4 stages.
+16 REST endpoints + 1 WebSocket · 7 tables · 139 tests (92% coverage, green in CI) · live Yahoo verified for
+50/50 stocks · 353 req/s, p95 105 ms, 0 errors · fill latency p95 40 ms · 0 invariant violations / 27,924
+orders · ~70 MB images · 4 stages + hardening.
