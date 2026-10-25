@@ -1,5 +1,7 @@
 # NSE Paper Trading
 
+[![CI](https://github.com/shashankappu21/nse-paper-trading/actions/workflows/ci.yml/badge.svg)](https://github.com/shashankappu21/nse-paper-trading/actions/workflows/ci.yml)
+
 A **broker-style paper trading platform for NSE stocks**. Users get ₹10,00,000 of virtual cash, place
 market and limit orders on NIFTY 50 stocks at real market prices, and track their holdings and P&L, with
 live prices pushed over WebSockets.
@@ -23,7 +25,8 @@ Vite · Tailwind 4 · TradingView lightweight-charts · Docker · GitHub Actions
 |---|---|
 | HTTP endpoints | **16** REST operations + **1** WebSocket (`/ws`) — documented at `/docs` (Swagger) |
 | Database tables | **7** (`users`, `instruments`, `daily_prices`, `orders`, `order_events`, `holdings`, `cash_ledger`) |
-| Tests | **127** Jest tests (51 unit, 76 integration against real Postgres/Redis/BullMQ) · 90% statement coverage |
+| Tests | **139** Jest tests (62 unit, 77 integration against real Postgres/Redis/BullMQ) · 92% statement coverage · green on GitHub Actions |
+| Market data | Verified against **live Yahoo Finance** for all 50 NIFTY 50 stocks: quotes + 2 years of daily candles (24,700 bars) |
 | Load test (k6, 50 VUs) | **353 req/s**, order placement **p95 105 ms**, **0 errors** in 31,240 requests |
 | Execution latency | API accept → worker fill: **p50 23 ms, p95 40 ms** (21,756 market orders) |
 | Correctness under load | **0** ledger/holding/event-trail violations across 27,924 orders |
@@ -229,7 +232,7 @@ debugging; tests use this mode for the service-level suites).
 
 | Command | |
 |---|---|
-| `npm test` | All 125 tests (needs Postgres + Redis; uses `trading_test` and Redis DB 15) |
+| `npm test` | All 139 tests (needs Postgres + Redis; uses `trading_test` and Redis DB 15) |
 | `npm run test:unit` | Pure domain tests only, no infrastructure |
 | `npm run lint` · `npm run typecheck` | ESLint · `tsc -b` for every package + web |
 | `npm run migrate` · `npm run seed` | Apply migrations · seed (both idempotent) |
@@ -291,18 +294,19 @@ Written **test-first** for the order logic: the specs were committed red
 | `core-unit` · state machine | 38 | All 36 from→to pairs: 7 allowed, 29 rejected with `INVALID_STATE_TRANSITION`; terminal states |
 | `core-unit` · P&L math | 8 | Average-cost method, realised/unrealised P&L, **no paise lost across partial sells** |
 | `core-unit` · pre-trade checks | 5 | Buying power to the paisa, reserved sell quantity |
-| `core-integration` · order flow | 27 | Market/limit fills, insufficient funds/holdings, cash blocking, cancellation, duplicate & **concurrent** idempotency keys, concurrent overspend, retries, P&L |
-| `core-integration` · auth, market data, ingest | 13 | bcrypt + JWT, Redis TTL, **single-flight** cache stampede protection, stale fallback, concurrent ingest count |
+| `core-unit` · Yahoo provider | 11 | `SYMBOL.NS` mapping (incl. `M&M`), IST date keying, paise rounding, missing-price handling — `yahoo-finance2` mocked with shapes captured from live responses |
+| `core-integration` · order flow | 28 | Market/limit fills, insufficient funds/holdings, cash blocking, cancellation, duplicate & **concurrent** idempotency keys, concurrent overspend, retries, P&L, exit-only for stocks that left the index |
+| `core-integration` · auth, market data, ingest | 15 | bcrypt + JWT, Redis TTL, **single-flight** cache stampede protection, stale fallback, concurrent ingest count, **retry after a transient provider error**, index rejig |
 | `api` | 28 | HTTP contract, error envelope, request-id echo, rate limits, OpenAPI coverage, WebSocket fan-out and auth |
 | `worker` | 6 | Real BullMQ: async fill, request-id across the hop, job dedupe, **reconciler recovers a lost enqueue**, EOD job |
-| **Total** | **125** | 90.3% statements · 92.3% lines |
+| **Total** | **139** | 92.2% statements · 93.9% lines |
 
 Integration tests run against **real PostgreSQL and Redis** (CI uses service containers). The correctness of
 this system lives in constraints, row locks and transactions — mocking the database would test nothing.
 
 ```
-Test Suites: 11 passed, 11 total
-Tests:       125 passed, 125 total
+Test Suites: 12 passed, 12 total
+Tests:       139 passed, 139 total
 ```
 
 ## Load test results (k6)
