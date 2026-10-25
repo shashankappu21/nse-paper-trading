@@ -141,7 +141,7 @@ input — routes stay one-liners and can't forget validation.
 
 ### TDD, concretely
 
-The order-logic tests were written **before the implementation** and committed red (`2d7e968 test: specs for
+The order-logic tests were written **before the implementation** and committed red (`ffdcb71 test: specs for
 order logic (red)`): state machine, P&L math, pre-trade checks, and the integration flow — market fills,
 insufficient funds/holdings, limit fills, cancellation, duplicate and concurrent idempotency keys, concurrent
 overspend, retry safety, P&L aggregation. They failed because the modules didn't exist. Then the

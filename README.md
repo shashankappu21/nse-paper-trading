@@ -284,7 +284,7 @@ curl -i localhost:4000/api/v1/orders -H "authorization: Bearer $TOKEN" -H 'conte
 ## Testing
 
 Written **test-first** for the order logic: the specs were committed red
-([`2d7e968`](docs/JOURNEY.md#stage-1--the-synchronous-core-tdd)) before any implementation existed.
+([`ffdcb71`](docs/JOURNEY.md#stage-1--the-synchronous-core-tdd)) before any implementation existed.
 
 | Suite | Tests | What it proves |
 |---|---|---|
