@@ -1,4 +1,4 @@
-import { FakePriceProvider, NIFTY_50, PriceIngestService, instrumentsRepo, type Pool } from '../../src';
+import { FakePriceProvider, NIFTY_50, PriceIngestService, instrumentsRepo, type Pool, type PriceProvider } from '../../src';
 import { resetDb, testPool } from '../helpers';
 
 describe('PriceIngestService', () => {
@@ -26,6 +26,31 @@ describe('PriceIngestService', () => {
     await svc.ingest(from, to);
     const { rows } = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM daily_prices');
     expect(rows[0]!.n).toBe(250);
+  });
+
+  it('retries a symbol after a transient provider error instead of dropping its history', async () => {
+    // Seen against real Yahoo: a DNS blip (ENOTFOUND) mid-seed lost 21 of 50 symbols.
+    const fake = new FakePriceProvider();
+    const calls = new Map<string, number>();
+    const flaky: PriceProvider = {
+      name: 'flaky',
+      getQuotes: (s) => fake.getQuotes(s),
+      getDailyHistory: async (symbol, from, to) => {
+        const n = (calls.get(symbol) ?? 0) + 1;
+        calls.set(symbol, n);
+        if (symbol === 'TCS' && n < 3) throw new Error('getaddrinfo ENOTFOUND query2.finance.yahoo.com');
+        if (symbol === 'INFY') throw new Error('permanently down');
+        return fake.getDailyHistory(symbol, from, to);
+      },
+    };
+    const svc = new PriceIngestService(pool, flaky, { attempts: 3, retryDelayMs: 0 });
+
+    const res = await svc.ingest(new Date('2026-10-12T06:00:00Z'), new Date('2026-10-16T06:00:00Z'), ['TCS', 'INFY', 'SBIN']);
+
+    expect(res).toEqual({ symbols: 3, bars: 10, failed: ['INFY'] });
+    expect(calls.get('TCS')).toBe(3); // failed twice, succeeded on the third attempt
+    expect(calls.get('INFY')).toBe(3); // gave up after the configured attempts
+    expect(calls.get('SBIN')).toBe(1);
   });
 
   it('generated candles are internally consistent (low <= open,close <= high)', async () => {
